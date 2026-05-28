@@ -27,8 +27,8 @@
   --rule-2: #d4d4d4;      /* secondary rule */
   --rule-3: #ebebeb;      /* tertiary rule */
 
+  /* 唯一の有色アクセント: 危険のみ（超過 / 警告 / 削除ホバー） */
   --danger: #c0151c;
-  --danger-bg: #fbe9ea;
 
   --sans: 'Inter', -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic UI", sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, "SF Mono", "Menlo", monospace;
@@ -914,6 +914,32 @@ label {
 @media (max-width: 720px) {
   .stat-cell:nth-child(2) { border-right: none; }
   .stat-cell:nth-child(1), .stat-cell:nth-child(2) { border-bottom: 1px solid var(--rule-2); }
+}
+
+/* =========================================================
+   Plan table — 種別タグ
+========================================================= */
+
+.kind-tag-must,
+.kind-tag-other {
+  display: inline-block;
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  padding: 3px 8px;
+  line-height: 1;
+}
+
+.kind-tag-must {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+.kind-tag-other {
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--ink);
 }
 
 /* =========================================================
