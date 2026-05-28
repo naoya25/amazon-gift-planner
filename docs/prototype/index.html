@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ギフトプランナー</title>
+  <link rel="stylesheet" href="./style.css">
+  <style>
+    .hero {
+      padding: 56px 32px 48px;
+      border-bottom: 1px solid var(--ink);
+    }
+    .hero-issue {
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: 14px;
+      color: var(--ink-3);
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 32px;
+    }
+    .hero-issue-mono {
+      font-family: var(--mono);
+      font-style: normal;
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      color: var(--ink-3);
+    }
+    .hero-title {
+      margin: 0;
+    }
+    .hero-tag {
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: 18px;
+      color: var(--ink-3);
+      margin: 16px 0 0;
+      max-width: 480px;
+      line-height: 1.45;
+    }
+    .form-pad {
+      padding: 40px 32px 48px;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell shell-center">
+
+    <section class="hero">
+      <div class="hero-issue">
+        <span>Vol. 1 · ビンゴ景品プランナー</span>
+        <span class="hero-issue-mono">N°01 / 2026</span>
+      </div>
+      <h1 class="hero-title">
+        <span class="t-hero">Gift</span>
+        <span class="t-hero-italic">Planner</span>
+      </h1>
+      <p class="hero-tag">
+        予算ピッタリで景品を仕分け、自動最適化。<br>
+        必須を指定し、残りは候補から組み合わせる。
+      </p>
+    </section>
+
+    <section class="form-pad">
+
+      <div class="section-rule">Setup</div>
+
+      <div class="field">
+        <label class="field-label" for="budget">予算（円）</label>
+        <input id="budget" type="text" inputmode="numeric" class="input input-mono" style="text-align:right;font-size:18px;">
+      </div>
+
+      <div class="field">
+        <label class="field-label">景品の個数</label>
+        <div class="mode-list">
+
+          <label class="mode-row" data-mode="range">
+            <input type="radio" name="countMode" value="range" class="mode-radio">
+            <span class="mode-label">範囲で指定</span>
+            <span class="mode-inputs">
+              <input id="countMin" type="text" inputmode="numeric" placeholder="最小" class="input input-mini input-mono" style="width:64px;text-align:center;">
+              <span class="t-sub">〜</span>
+              <input id="countMax" type="text" inputmode="numeric" placeholder="最大" class="input input-mini input-mono" style="width:64px;text-align:center;">
+              <span class="t-sub" style="font-size:11px;letter-spacing:0.04em;">個</span>
+            </span>
+          </label>
+
+          <label class="mode-row" data-mode="fixed">
+            <input type="radio" name="countMode" value="fixed" class="mode-radio">
+            <span class="mode-label">固定</span>
+            <span class="mode-inputs">
+              <input id="countFixed" type="text" inputmode="numeric" placeholder="個数" class="input input-mini input-mono" style="width:72px;text-align:center;">
+              <span class="t-sub" style="font-size:11px;letter-spacing:0.04em;">個</span>
+            </span>
+          </label>
+
+          <label class="mode-row" data-mode="any">
+            <input type="radio" name="countMode" value="any" class="mode-radio">
+            <span class="mode-label">指定しない</span>
+          </label>
+
+        </div>
+        <p class="t-muted" style="font-size:10px;margin:8px 0 0;letter-spacing:0.04em;font-family:var(--serif);font-style:italic;">
+          範囲モード — 片方だけの入力で「下限のみ」「上限のみ」になります。
+        </p>
+      </div>
+
+      <div class="field" style="margin-bottom:40px;">
+        <label class="field-label" for="participantCount">参加人数</label>
+        <input id="participantCount" type="text" inputmode="numeric" class="input input-mono" style="text-align:right;font-size:18px;">
+      </div>
+
+      <div class="rule-double" style="margin:0 0 24px;"></div>
+
+      <div class="flex items-center justify-between gap-3">
+        <button id="resetBtn" class="btn btn-link btn-danger">保存データをリセット</button>
+        <button id="startBtn" class="btn">始める →</button>
+      </div>
+
+      <p class="t-muted t-serif-italic" style="font-size:12px;text-align:center;margin-top:32px;letter-spacing:0;">
+        — 入力はブラウザに保存されます。サーバー送信なし —
+      </p>
+    </section>
+
+  </div>
+
+  <script src="./app.js"></script>
+  <script>
+    const state = loadState();
+    const budgetEl = document.getElementById('budget');
+    const participantEl = document.getElementById('participantCount');
+    const minEl = document.getElementById('countMin');
+    const maxEl = document.getElementById('countMax');
+    const fixedEl = document.getElementById('countFixed');
+
+    budgetEl.value = state.budget;
+    participantEl.value = state.participantCount;
+    if (state.itemCountMin != null) minEl.value = state.itemCountMin;
+    if (state.itemCountMax != null) maxEl.value = state.itemCountMax;
+    if (state.itemCountFixed != null) fixedEl.value = state.itemCountFixed;
+
+    bindNumericInput(budgetEl);
+    bindNumericInput(participantEl);
+    bindNumericInput(minEl);
+    bindNumericInput(maxEl);
+    bindNumericInput(fixedEl);
+
+    const mode = state.itemCountMode || 'range';
+    setMode(mode);
+
+    function setMode(m) {
+      document.querySelectorAll('input[name="countMode"]').forEach(r => {
+        r.checked = r.value === m;
+      });
+      document.querySelectorAll('.mode-row').forEach(row => {
+        row.classList.toggle('active', row.dataset.mode === m);
+      });
+    }
+
+    document.querySelectorAll('input[name="countMode"]').forEach(r => {
+      r.addEventListener('change', () => setMode(r.value));
+    });
+
+    document.querySelectorAll('.mode-row').forEach(row => {
+      row.addEventListener('click', e => {
+        if (e.target.tagName === 'INPUT') return;
+        setMode(row.dataset.mode);
+      });
+    });
+
+    document.getElementById('startBtn').addEventListener('click', () => {
+      const budget = parseNum(budgetEl.value);
+      const participantCount = parseNum(participantEl.value);
+      const selectedMode = document.querySelector('input[name="countMode"]:checked')?.value || 'range';
+
+      if (!budget || !participantCount) {
+        alert('予算と参加人数を入力してください');
+        return;
+      }
+
+      const next = {
+        ...state,
+        budget,
+        participantCount,
+        itemCountMode: selectedMode,
+        itemCountMin: minEl.value ? parseNum(minEl.value) : null,
+        itemCountMax: maxEl.value ? parseNum(maxEl.value) : null,
+        itemCountFixed: fixedEl.value ? parseNum(fixedEl.value) : null,
+      };
+
+      next.itemCount = next.itemCountFixed ?? next.itemCountMax ?? next.itemCountMin ?? 15;
+
+      if (selectedMode === 'fixed' && !next.itemCountFixed) {
+        alert('「固定」モードでは個数を入力してください');
+        return;
+      }
+      if (selectedMode === 'range' && !next.itemCountMin && !next.itemCountMax) {
+        alert('「範囲」モードでは最小か最大のどちらかを入力してください');
+        return;
+      }
+
+      saveState(next);
+      location.href = './board.html';
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      if (confirm('保存データをリセットします。よろしいですか？')) {
+        resetState();
+        location.reload();
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ギフトプランナー — ボード</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <style>
+    .board-grid {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      border-top: 1px solid var(--rule);
+    }
+    @media (max-width: 980px) {
+      .board-grid { grid-template-columns: 1fr; }
+    }
+    .board-left { border-right: 1px solid var(--rule); padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+    .board-right { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+    @media (max-width: 980px) {
+      .board-left { border-right: none; border-bottom: 1px solid var(--rule); }
+    }
+    .meter-section { padding: 16px 24px; }
+  </style>
+</head>
+<body>
+  <div class="shell">
+
+    <header class="app-header">
+      <div class="flex items-center gap-3">
+        <h1 class="app-title">Gift Planner</h1>
+        <span class="issue-mark">— 02 / 仕分けボード</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="backBtn" class="btn btn-link">← スタート</button>
+        <button id="planBtn" class="btn btn-sm">プランを作成 →</button>
+      </div>
+    </header>
+
+    <!-- メーター -->
+    <section class="meter-section section">
+      <div class="section-rule">Budget · Count</div>
+      <div class="meter-line">
+        <div class="meter-num">
+          <strong id="totalAmount" style="font-size:18px;">¥0</strong>
+          <span class="t-muted"> / </span>
+          <span id="budgetAmount">¥0</span>
+          <span id="budgetDiff" style="margin-left:10px;"></span>
+        </div>
+        <div class="meter-num">
+          <span class="t-muted">個数 </span>
+          <strong id="totalCount" style="font-size:18px;">0</strong>
+          <span id="countConstraintText" class="t-muted" style="margin-left:8px;font-size:11px;letter-spacing:0.06em;"></span>
+        </div>
+      </div>
+      <div class="meter">
+        <div id="budgetBar" class="meter-fill" style="width:0%"></div>
+      </div>
+    </section>
+
+    <div class="board-grid">
+
+      <!-- 左: レーン -->
+      <div class="board-left">
+
+        <section class="lane-section is-must">
+          <div class="lane-stripe">
+            <span class="lane-stripe-hint">優先度1</span>
+            <span class="lane-stripe-label">必須</span>
+            <span id="mustSummary" class="lane-stripe-summary">0 / ¥0</span>
+          </div>
+          <div id="laneMust" class="lane"></div>
+        </section>
+
+        <section class="lane-section is-other">
+          <div class="lane-stripe">
+            <span class="lane-stripe-hint">並び順=優先</span>
+            <span class="lane-stripe-label">候補</span>
+            <span id="otherSummary" class="lane-stripe-summary">0 / ¥0</span>
+          </div>
+          <div id="laneOther" class="lane"></div>
+        </section>
+
+      </div>
+
+      <!-- 右: 検索 + 提案 -->
+      <aside class="board-right">
+
+        <section class="panel-section">
+          <header class="panel-head">
+            <span class="t-serif-italic" style="font-size:18px;">Search.</span>
+            <span class="t-eyebrow">Amazon</span>
+          </header>
+          <div class="panel-body">
+            <div class="search-row">
+              <input id="searchInput" type="text" placeholder="例: Switch、ダイソン、お米" class="input">
+              <button id="searchBtn" class="btn btn-sm">検索</button>
+            </div>
+            <div id="searchResults"></div>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <header class="panel-head">
+            <span class="t-serif-italic" style="font-size:18px;">Suggest.</span>
+            <span class="t-eyebrow">JapanAI</span>
+          </header>
+          <div class="panel-body">
+            <button id="suggestBtn" class="btn btn-block btn-sm" style="margin-bottom:14px;">候補を生成する</button>
+            <div id="suggestResults" class="suggest-list"></div>
+          </div>
+        </section>
+
+      </aside>
+
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+  <script>
+    let state = loadState();
+
+    function persist() {
+      saveState(state);
+      renderAll();
+    }
+
+    function renderAll() {
+      renderLane('must', document.getElementById('laneMust'));
+      renderLane('other', document.getElementById('laneOther'));
+      renderMeter();
+    }
+
+    function renderLane(lane, container) {
+      const items = state.items
+        .filter(i => i.lane === lane)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+      container.innerHTML = '';
+      if (items.length === 0) {
+        container.classList.add('lane-empty');
+      } else {
+        container.classList.remove('lane-empty');
+        items.forEach((item, idx) => container.appendChild(renderCard(item, idx)));
+      }
+    }
+
+    function renderCard(item, idx) {
+      const card = document.createElement('div');
+      card.className = 'item-card';
+      card.dataset.id = item.id;
+
+      const subtotal = item.unitPrice * item.quantity;
+      const hasUrl = !!item.url;
+      const numLabel = String(idx + 1).padStart(2, '0');
+
+      card.innerHTML = `
+        <span class="num-mark">${numLabel}.</span>
+        <input type="text" value="${escapeHtml(item.name)}" data-field="name" class="input-inline item-name" placeholder="（商品名）" title="${escapeHtml(item.name)}">
+        <span class="item-price-block">
+          <span>¥</span>
+          <input type="text" inputmode="numeric" value="${num(item.unitPrice)}" data-field="unitPrice" data-numeric="1"
+            class="input-inline t-mono" style="width:64px;text-align:right;">
+          <span>×</span>
+          <input type="text" inputmode="numeric" value="${num(item.quantity)}" data-field="quantity" data-numeric="1"
+            class="input-inline t-mono" style="width:32px;text-align:right;">
+        </span>
+        <span class="item-subtotal" data-display="subtotal">${yen(subtotal)}</span>
+        <div class="rating-bar" title="${item.rating ? '評価: ' + item.rating + '/10' : '未評価（クリックで設定）'}">
+          ${[1,2,3,4,5,6,7,8,9,10].map(n => `
+            <button data-rating="${n}" class="rating-btn ${(item.rating ?? 0) >= n ? 'active' : ''}" aria-label="評価 ${n}">${n}</button>
+          `).join('')}
+        </div>
+        <a href="${hasUrl ? escapeHtml(item.url) : '#'}" target="_blank" rel="noopener"
+          class="item-url-icon ${hasUrl ? '' : 'is-empty'}"
+          title="${hasUrl ? '開く: ' + escapeHtml(item.url) : 'URL 未設定'}">↗</a>
+        <button data-action="edit-url" class="item-delete" title="URL を編集" style="font-size:11px;">URL</button>
+        <button data-action="delete" class="item-delete" title="削除">×</button>
+      `;
+
+      card.querySelectorAll('[data-field]').forEach(input => {
+        const isNumeric = input.dataset.numeric === '1';
+        if (isNumeric) {
+          bindNumericInput(input, v => updateItem(item.id, { [input.dataset.field]: v }));
+        } else {
+          input.addEventListener('change', e => updateItem(item.id, { [e.target.dataset.field]: e.target.value }));
+        }
+        // ドラッグと編集の競合を避ける（クリックで focus する間は draggable=false 相当に）
+        input.addEventListener('mousedown', e => e.stopPropagation());
+      });
+
+      // 評価バーは「クリック位置 = N まで塗る」累積式
+      card.querySelectorAll('[data-rating]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const rating = Number(btn.dataset.rating);
+          updateItem(item.id, { rating: item.rating === rating ? null : rating });
+        });
+      });
+
+      card.querySelector('[data-action="delete"]').addEventListener('click', () => {
+        if (confirm(`「${item.name || '無題'}」を削除しますか？`)) deleteItem(item.id);
+      });
+
+      card.querySelector('[data-action="edit-url"]').addEventListener('click', () => {
+        const next = prompt('URL を編集', item.url || '');
+        if (next !== null) updateItem(item.id, { url: next.trim() });
+      });
+
+      return card;
+    }
+
+    function renderMeter() {
+      const total = state.items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
+      const count = state.items.reduce((s, i) => s + i.quantity, 0);
+      const pct = state.budget > 0 ? Math.min(100, (total / state.budget) * 100) : 0;
+      const diff = state.budget - total;
+
+      document.getElementById('totalAmount').textContent = yen(total);
+      document.getElementById('budgetAmount').textContent = yen(state.budget);
+      document.getElementById('totalCount').textContent = num(count);
+
+      const bar = document.getElementById('budgetBar');
+      bar.style.width = pct + '%';
+      bar.classList.toggle('over', total > state.budget);
+
+      const diffEl = document.getElementById('budgetDiff');
+      if (diff >= 0) {
+        diffEl.textContent = '(残 ' + yen(diff) + ')';
+        diffEl.className = 't-mono t-muted';
+      } else {
+        diffEl.textContent = '(超過 ' + yen(-diff) + ')';
+        diffEl.className = 't-mono t-danger';
+      }
+
+      const must = state.items.filter(i => i.lane === 'must');
+      const other = state.items.filter(i => i.lane === 'other');
+      document.getElementById('mustSummary').textContent =
+        must.reduce((s, i) => s + i.quantity, 0) + ' / ' + yen(must.reduce((s, i) => s + i.unitPrice * i.quantity, 0));
+      document.getElementById('otherSummary').textContent =
+        other.reduce((s, i) => s + i.quantity, 0) + ' / ' + yen(other.reduce((s, i) => s + i.unitPrice * i.quantity, 0));
+
+      document.getElementById('countConstraintText').textContent = '[' + countConstraintLabel(state) + ']';
+    }
+
+    function addItem(partial) {
+      const lane = partial.lane || 'other';
+      const sameLane = state.items.filter(i => i.lane === lane);
+      const maxOrder = sameLane.reduce((m, i) => Math.max(m, i.order ?? 0), 0);
+      state.items.push({
+        id: uid(), name: '', url: '', unitPrice: 0, quantity: 1, rating: null,
+        lane, order: maxOrder + 1, ...partial,
+      });
+      persist();
+    }
+
+    function updateItem(id, patch) {
+      const idx = state.items.findIndex(i => i.id === id);
+      if (idx < 0) return;
+      state.items[idx] = { ...state.items[idx], ...patch };
+      saveState(state);
+      if ('rating' in patch) {
+        renderAll();
+      } else {
+        renderMeter();
+        const card = document.querySelector(`[data-id="${id}"]`);
+        if (card) {
+          const item = state.items[idx];
+          const subtotalEl = card.querySelector('[data-display="subtotal"]');
+          if (subtotalEl) subtotalEl.textContent = yen(item.unitPrice * item.quantity);
+        }
+      }
+    }
+
+    function deleteItem(id) {
+      state.items = state.items.filter(i => i.id !== id);
+      persist();
+    }
+
+    function initSortable() {
+      ['laneMust', 'laneOther'].forEach(laneId => {
+        const el = document.getElementById(laneId);
+        new Sortable(el, {
+          group: 'lanes',
+          animation: 120,
+          ghostClass: 'sortable-ghost',
+          chosenClass: 'sortable-chosen',
+          dragClass: 'sortable-drag',
+          onEnd: () => {
+            ['laneMust', 'laneOther'].forEach(lId => {
+              const lane = lId === 'laneMust' ? 'must' : 'other';
+              const container = document.getElementById(lId);
+              Array.from(container.children).forEach((card, idx) => {
+                const id = card.dataset.id;
+                const item = state.items.find(i => i.id === id);
+                if (item) { item.lane = lane; item.order = idx + 1; }
+              });
+            });
+            persist();
+          },
+        });
+      });
+    }
+
+    document.getElementById('searchBtn').addEventListener('click', doSearch);
+    document.getElementById('searchInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') doSearch();
+    });
+
+    function doSearch() {
+      const keyword = document.getElementById('searchInput').value.trim();
+      if (!keyword) return;
+      const result = mockSearch(keyword);
+      renderSearchResults(keyword, result);
+    }
+
+    function renderSearchResults(keyword, result) {
+      const wrap = document.getElementById('searchResults');
+      wrap.innerHTML = `
+        <div class="meta-row">
+          <span class="meta-chip">平均 ${yen(result.average)}</span>
+          <span class="meta-chip">${yen(result.range[0])} 〜 ${yen(result.range[1])}</span>
+        </div>
+        ${result.candidates.map((c, i) => `
+          <div class="search-result">
+            <div class="flex items-center justify-between gap-2" style="margin-bottom:6px;">
+              <div class="search-result-title line-clamp-2 flex-1">${escapeHtml(c.title)}</div>
+              <button data-add="${i}" class="btn btn-xs">追加</button>
+            </div>
+            <div class="search-result-price">${yen(c.price)}</div>
+          </div>
+        `).join('')}
+      `;
+      wrap.querySelectorAll('[data-add]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const i = Number(btn.dataset.add);
+          const c = result.candidates[i];
+          addItem({
+            name: c.title, url: c.url, unitPrice: c.price, quantity: 1, lane: 'other',
+            meta: { searchAverage: result.average, searchRange: result.range },
+          });
+        });
+      });
+    }
+
+    document.getElementById('suggestBtn').addEventListener('click', () => {
+      const suggestions = mockSuggest();
+      const wrap = document.getElementById('suggestResults');
+      wrap.innerHTML = suggestions.map((s, i) => `
+        <div class="search-result flex items-center justify-between gap-2">
+          <div class="flex-1" style="min-width:0;">
+            <div class="search-result-title line-clamp-2">${escapeHtml(s.name)}</div>
+            <div class="search-result-price">${yen(s.unitPrice)}</div>
+          </div>
+          <button data-suggest="${i}" class="btn btn-ghost btn-xs">追加</button>
+        </div>
+      `).join('');
+      wrap.querySelectorAll('[data-suggest]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const i = Number(btn.dataset.suggest);
+          const s = suggestions[i];
+          addItem({ name: s.name, url: s.url, unitPrice: s.unitPrice, quantity: 1, lane: 'other' });
+        });
+      });
+    });
+
+    document.getElementById('backBtn').addEventListener('click', () => location.href = './index.html');
+    document.getElementById('planBtn').addEventListener('click', () => location.href = './plan.html');
+
+    function escapeHtml(s) {
+      return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    renderAll();
+    initSortable();
+  </script>
+</body>
+</html>

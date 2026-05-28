@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ギフトプランナー — 最終プラン</title>
+  <link rel="stylesheet" href="./style.css">
+  <style>
+    .plan-shell { max-width: 1024px; }
+    .plan-body { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+  </style>
+</head>
+<body>
+  <div class="shell plan-shell">
+
+    <header class="app-header">
+      <div class="flex items-center gap-3">
+        <h1 class="app-title">Gift Planner</h1>
+        <span class="issue-mark">— 03 / 最終プラン</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="backBtn" class="btn btn-link">← ボード</button>
+        <button id="regenerateBtn" class="btn btn-ghost btn-sm">別案で再生成</button>
+        <button id="csvBtn" class="btn btn-sm">CSVで出力</button>
+      </div>
+    </header>
+
+    <div class="plan-body">
+
+      <!-- 統計 -->
+      <section>
+        <div class="section-rule">Summary</div>
+        <div class="stat-grid">
+          <div class="stat-cell">
+            <div class="t-label">予算</div>
+            <div class="t-display" id="stBudget" style="margin-top:8px;">¥0</div>
+          </div>
+          <div class="stat-cell">
+            <div class="t-label">合計</div>
+            <div class="t-display" id="stTotal" style="margin-top:8px;">¥0</div>
+          </div>
+          <div class="stat-cell">
+            <div class="t-label" id="stDiffLabel">残額</div>
+            <div class="t-display" id="stDiff" style="margin-top:8px;">¥0</div>
+          </div>
+          <div class="stat-cell">
+            <div class="t-label">個数</div>
+            <div class="t-display" style="margin-top:8px;">
+              <span id="stCount">0</span>
+              <span class="t-muted" id="stCountTarget" style="font-size:11px;letter-spacing:0.06em;margin-left:6px;"></span>
+            </div>
+          </div>
+        </div>
+        <div class="meter" style="margin-top:16px;">
+          <div id="planBar" class="meter-fill" style="width:0%"></div>
+        </div>
+      </section>
+
+      <!-- 警告 -->
+      <div id="warning" class="alert" style="display:none;"></div>
+
+      <!-- 必須 -->
+      <section class="lane-section is-must">
+        <div class="lane-stripe">
+          <span class="lane-stripe-hint">全投入</span>
+          <span class="lane-stripe-label">必須</span>
+          <span class="lane-stripe-summary"></span>
+        </div>
+        <div id="mustTable" style="flex:1;min-width:0;"></div>
+      </section>
+
+      <!-- 穴埋め -->
+      <section class="lane-section is-other">
+        <div class="lane-stripe">
+          <span class="lane-stripe-hint">自動選定</span>
+          <span class="lane-stripe-label">穴埋</span>
+          <span class="lane-stripe-summary"></span>
+        </div>
+        <div id="otherTable" style="flex:1;min-width:0;"></div>
+      </section>
+
+      <p class="t-muted" style="font-size:10px;text-align:center;margin:8px 0;letter-spacing:0.06em;">
+        ※ プロトタイプの最適化は greedy 法。本実装では DP 部分和で予算ピッタリを目指します。
+      </p>
+
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+  <script>
+    const state = loadState();
+    let plan = buildFinalPlan(state);
+
+    function renderPlan() {
+      const total = plan.total;
+      const diff = plan.diff;
+      const pct = state.budget > 0 ? Math.min(100, (total / state.budget) * 100) : 0;
+
+      document.getElementById('stBudget').textContent = yen(state.budget);
+      const totalEl = document.getElementById('stTotal');
+      totalEl.textContent = yen(total);
+      totalEl.classList.toggle('t-danger', total > state.budget);
+
+      const diffLabel = document.getElementById('stDiffLabel');
+      const diffEl = document.getElementById('stDiff');
+      if (diff >= 0) {
+        diffLabel.textContent = '残額';
+        diffEl.textContent = yen(diff);
+        diffEl.classList.remove('t-danger');
+      } else {
+        diffLabel.textContent = '超過';
+        diffEl.textContent = yen(-diff);
+        diffEl.classList.add('t-danger');
+      }
+
+      document.getElementById('stCount').textContent = plan.totalCount;
+      document.getElementById('stCountTarget').textContent = '/ ' + (plan.constraintLabel || '指定なし');
+
+      const bar = document.getElementById('planBar');
+      bar.style.width = pct + '%';
+      bar.classList.toggle('over', total > state.budget);
+
+      const w = document.getElementById('warning');
+      if (plan.warning) {
+        w.style.display = 'flex';
+        w.textContent = plan.warning;
+      } else {
+        w.style.display = 'none';
+      }
+
+      renderTable('mustTable', plan.must, 'must');
+      renderTable('otherTable', plan.selected, 'other');
+
+      // ストライプ集計
+      const mustSummary = plan.must.reduce((s, i) => s + i.quantity, 0) + ' / ' + yen(plan.must.reduce((s, i) => s + i.unitPrice * i.quantity, 0));
+      const otherSummary = plan.selected.reduce((s, i) => s + i.quantity, 0) + ' / ' + yen(plan.selected.reduce((s, i) => s + i.unitPrice * i.quantity, 0));
+      document.querySelector('.is-must .lane-stripe-summary').textContent = mustSummary;
+      document.querySelector('.is-other .lane-stripe-summary').textContent = otherSummary;
+    }
+
+    function renderTable(containerId, items, lane) {
+      const container = document.getElementById(containerId);
+      if (items.length === 0) {
+        container.innerHTML = `<div style="padding:32px;text-align:center;color:var(--ink-5);font-size:11px;letter-spacing:0.06em;">該当なし</div>`;
+        return;
+      }
+      container.innerHTML = `
+        <table class="plan-table">
+          <thead>
+            <tr>
+              <th style="width:36px;text-align:right;">#</th>
+              <th>商品名</th>
+              <th style="text-align:right;width:96px;">単価 ¥</th>
+              <th style="text-align:right;width:64px;">個数</th>
+              <th style="text-align:right;width:112px;">小計</th>
+              <th style="text-align:center;width:56px;">評価</th>
+              <th style="text-align:center;width:48px;">URL</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map((item, idx) => `
+              <tr data-id="${item.id}">
+                <td style="text-align:right;color:var(--ink-3);font-family:var(--serif);font-style:italic;font-size:13px;">${String(idx + 1).padStart(2, '0')}.</td>
+                <td>
+                  <input type="text" value="${escapeHtml(item.name)}" data-field="name" class="input-inline" style="width:100%;">
+                </td>
+                <td class="mono" style="text-align:right;">
+                  <input type="text" inputmode="numeric" value="${num(item.unitPrice)}" data-field="unitPrice" data-numeric="1" class="input-inline t-mono" style="width:100%;text-align:right;">
+                </td>
+                <td class="mono" style="text-align:right;">
+                  <input type="text" inputmode="numeric" value="${num(item.quantity)}" data-field="quantity" data-numeric="1" class="input-inline t-mono" style="width:100%;text-align:right;">
+                </td>
+                <td class="mono" style="text-align:right;font-weight:600;" data-display="subtotal">${yen(item.unitPrice * item.quantity)}</td>
+                <td class="mono" style="text-align:center;color:var(--ink-3);">${item.rating || '—'}</td>
+                <td style="text-align:center;">
+                  ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener" style="color:var(--ink);text-decoration:none;font-size:14px;font-weight:600;">↗</a>` : '<span class="t-muted">—</span>'}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+
+      container.querySelectorAll('input[data-field]').forEach(input => {
+        const isNumeric = input.dataset.numeric === '1';
+        const apply = (value) => {
+          const id = input.closest('tr').dataset.id;
+          const field = input.dataset.field;
+          const arr = lane === 'must' ? plan.must : plan.selected;
+          const item = arr.find(i => i.id === id);
+          if (item) {
+            item[field] = value;
+            plan.total = plan.must.reduce((s, i) => s + i.unitPrice * i.quantity, 0)
+                       + plan.selected.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
+            plan.diff = state.budget - plan.total;
+            plan.totalCount = plan.must.reduce((s, i) => s + i.quantity, 0)
+                            + plan.selected.reduce((s, i) => s + i.quantity, 0);
+            renderPlan();
+          }
+        };
+        if (isNumeric) {
+          bindNumericInput(input, v => apply(v));
+        } else {
+          input.addEventListener('change', e => apply(e.target.value));
+        }
+      });
+    }
+
+    document.getElementById('csvBtn').addEventListener('click', () => {
+      const rows = [...plan.must, ...plan.selected];
+      if (rows.length === 0) {
+        alert('プランが空です');
+        return;
+      }
+      exportCsv(rows);
+    });
+
+    document.getElementById('regenerateBtn').addEventListener('click', () => {
+      state.items = state.items.map(i => i.lane === 'other'
+        ? { ...i, order: Math.random() * 1000 }
+        : i);
+      plan = buildFinalPlan(state);
+      renderPlan();
+    });
+
+    document.getElementById('backBtn').addEventListener('click', () => location.href = './board.html');
+
+    function escapeHtml(s) {
+      return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    renderPlan();
+  </script>
+</body>
+</html>
