@@ -1,0 +1,28 @@
+{
+  "name": "gift-planner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ビンゴ景品プランナー — 予算ピッタリで景品を仕分けて自動最適化する Web ツール",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "hono": "^4.6.14",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250108.0",
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8",
+    "wrangler": "^3.99.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

@@ -1,0 +1,30 @@
+name = "gift-planner-api"
+main = "src/worker/index.ts"
+compatibility_date = "2025-01-08"
+compatibility_flags = ["nodejs_compat"]
+
+# 開発時のローカルポート（任意）
+# [dev]
+# port = 8787
+
+# 本番デプロイ用の独自ドメイン（後で設定）
+# routes = [
+#   { pattern = "api.gift-planner.example.com", custom_domain = true }
+# ]
+
+# KV namespaces（Phase 1.5 で binding を本実装）
+# [[kv_namespaces]]
+# binding = "CACHE_KV"
+# id = "TBD"
+# preview_id = "TBD"
+
+# Secrets は wrangler secret put で登録
+# - JAPAN_AI_API_KEY
+# - PAAPI_ACCESS_KEY
+# - PAAPI_SECRET_KEY
+# - PAAPI_PARTNER_TAG
+# - TURNSTILE_SECRET_KEY
+
+[vars]
+# 環境変数（公開してよいもののみ。secret は wrangler secret put を使う）
+ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:8080"
