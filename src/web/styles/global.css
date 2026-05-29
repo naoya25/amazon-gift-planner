@@ -1141,3 +1141,18 @@ label {
 .form-pad {
   padding: 40px 32px 48px;
 }
+
+/* =========================================================
+   PlanPage 専用レイアウト
+========================================================= */
+
+.plan-shell {
+  max-width: 1024px;
+}
+
+.plan-body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}

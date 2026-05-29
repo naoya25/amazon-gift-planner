@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { StartPage } from './pages/StartPage';
 import { BoardPage } from './pages/BoardPage';
+import { PlanPage } from './pages/PlanPage';
 
 export function App() {
   return (
@@ -8,6 +9,7 @@ export function App() {
       <Routes>
         <Route path="/" element={<StartPage />} />
         <Route path="/board" element={<BoardPage />} />
+        <Route path="/plan" element={<PlanPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

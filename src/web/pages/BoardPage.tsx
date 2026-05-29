@@ -123,10 +123,7 @@ export function BoardPage() {
           <button className="btn btn-link" onClick={() => navigate('/')}>
             ← スタート
           </button>
-          <button
-            className="btn btn-sm"
-            onClick={() => alert('プラン画面は次のマイルストーン (M4) で実装します')}
-          >
+          <button className="btn btn-sm" onClick={() => navigate('/plan')}>
             プランを作成 →
           </button>
         </div>
