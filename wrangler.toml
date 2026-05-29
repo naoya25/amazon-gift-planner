@@ -3,9 +3,9 @@ main = "src/worker/index.ts"
 compatibility_date = "2025-01-08"
 compatibility_flags = ["nodejs_compat"]
 
-# 開発時のローカルポート（任意）
-# [dev]
-# port = 8787
+# 開発時のローカルポート（Vite proxy と合わせる）
+[dev]
+port = 8787
 
 # 本番デプロイ用の独自ドメイン（後で設定）
 # routes = [
